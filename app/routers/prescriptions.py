@@ -1,5 +1,5 @@
 from bson import ObjectId
-from fastapi import APIRouter, UploadFile, Form, HTTPException, File, BackgroundTasks
+from fastapi import APIRouter, UploadFile, Form, HTTPException, File, BackgroundTasks, Depends, Query
 from ..models.prescription import Prescription
 from ..models.patient import Patient
 from ..services.database import get_db
@@ -14,7 +14,13 @@ router = APIRouter()
 ocr_service = OCRService()
 logger = logging.getLogger("pharmacy_module.prescriptions")
 
-async def process_ocr(file_path: str, prescription_data: dict):
+async def get_current_pharmacy_id(pharmacy_id: str = Query(None, description="Pharmacy ID for multi-tenancy")):
+    if pharmacy_id is None:
+        logger.warning("No pharmacy_id provided; allowing access for testing")
+        return None
+    return pharmacy_id
+
+async def process_ocr(file_path: str, prescription_data: dict, pharmacy_id: str = None):
     logger.info(f"Processing OCR for file: {file_path}")
     try:
         result = await asyncio.to_thread(ocr_service.process_image, file_path)
@@ -23,14 +29,15 @@ async def process_ocr(file_path: str, prescription_data: dict):
         prescription_data.update({
             "ocr_raw": result["ocr_raw"],
             "parsed_data": result["parsed_data"],
-            "image_path": result["image_path"]
+            "image_path": result["image_path"],
+            "pharmacy_id": pharmacy_id
         })
         db = get_db()
         prescription = Prescription(**prescription_data)
         result = db.prescriptions.insert_one(prescription.dict(by_alias=True, exclude_none=True))
         prescription_id = str(result.inserted_id)
         db.patients.update_one(
-            {"patient_id": prescription_data["patient_id"]},
+            {"patient_id": prescription_data["patient_id"], "pharmacy_id": pharmacy_id},
             {"$push": {"prescription_ids": prescription_id}},
             upsert=True
         )
@@ -47,7 +54,8 @@ async def upload_prescription(
     physician_id: str = Form(...),
     prescription_number: str = Form(...),
     priority: str = Form(...),
-    notes: str = Form(None)
+    notes: str = Form(None),
+    pharmacy_id: str = Depends(get_current_pharmacy_id)
 ):
     try:
         upload_dir = os.path.join("static", "uploads")
@@ -64,7 +72,7 @@ async def upload_prescription(
             "notes": notes,
             "source": "file"
         }
-        background_tasks.add_task(process_ocr, file_path, prescription_data)
+        background_tasks.add_task(process_ocr, file_path, prescription_data, pharmacy_id)
         return {"message": "Prescription upload initiated", "status": "processing"}
     except Exception as e:
         logger.error(f"Upload failed: {e}")
@@ -77,7 +85,8 @@ async def add_manual_prescription(
     prescription_number: str = Form(...),
     priority: str = Form(...),
     notes: str = Form(None),
-    text: str = Form(...)
+    text: str = Form(...),
+    pharmacy_id: str = Depends(get_current_pharmacy_id)
 ):
     try:
         logger.info(f"Processing manual prescription for patient_id: {patient_id}")
@@ -93,6 +102,7 @@ async def add_manual_prescription(
             "notes": notes,
             "ocr_raw": text,
             "parsed_data": parsed_data,
+            "pharmacy_id": pharmacy_id,
             "source": "manual"
         }
         db = get_db()
@@ -100,7 +110,7 @@ async def add_manual_prescription(
         result = db.prescriptions.insert_one(prescription.dict(by_alias=True, exclude_none=True))
         prescription_id = str(result.inserted_id)
         db.patients.update_one(
-            {"patient_id": patient_id},
+            {"patient_id": patient_id, "pharmacy_id": pharmacy_id},
             {"$push": {"prescription_ids": prescription_id}},
             upsert=True
         )
@@ -110,16 +120,22 @@ async def add_manual_prescription(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/prescriptions/{patient_id}", response_model=dict)
-async def get_prescriptions(patient_id: str):
+async def get_prescriptions(patient_id: str, pharmacy_id: str = Depends(get_current_pharmacy_id)):
     try:
         logger.info(f"Fetching prescriptions for patient_id: {patient_id}")
         db = get_db()
-        patient = db.patients.find_one({"patient_id": patient_id})
+        query = {"patient_id": patient_id}
+        if pharmacy_id:
+            query["pharmacy_id"] = pharmacy_id
+        patient = db.patients.find_one(query)
         if not patient or "prescription_ids" not in patient:
             return {"prescriptions": [], "message": "No prescriptions found"}
         
         prescription_ids = [ObjectId(pid) for pid in patient["prescription_ids"]]
-        prescriptions = list(db.prescriptions.find({"_id": {"$in": prescription_ids}}))
+        query = {"_id": {"$in": prescription_ids}}
+        if pharmacy_id:
+            query["pharmacy_id"] = pharmacy_id
+        prescriptions = list(db.prescriptions.find(query))
         for p in prescriptions:
             p["_id"] = str(p["_id"])
         return {"prescriptions": prescriptions}

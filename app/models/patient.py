@@ -13,6 +13,7 @@ class Patient(BaseModel):
     email: str
     address: str
     prescription_ids: List[str] = []
+    pharmacy_id: Optional[str] = None  # Multi-tenancy support
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:

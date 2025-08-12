@@ -6,7 +6,7 @@ from bson import ObjectId
 class MedicationItem(BaseModel):
     name: str
     dosage: str
-    frequency: Optional[str] = None  # Made optional with default None
+    frequency: Optional[str] = None
 
 class ParsedData(BaseModel):
     medications: List[MedicationItem]
@@ -25,6 +25,7 @@ class Prescription(BaseModel):
     ocr_raw: Optional[str] = None
     parsed_data: ParsedData
     status: str = "pending"
+    pharmacy_id: Optional[str] = None  # Multi-tenancy support
     created_at: datetime = Field(default_factory=datetime.utcnow)
     source: str
 

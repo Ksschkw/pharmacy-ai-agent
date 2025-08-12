@@ -4,6 +4,7 @@ from logging.handlers import RotatingFileHandler
 from fastapi import FastAPI
 from app.routers.prescriptions import router as prescriptions_router
 from app.routers.inventory import router as inventory_router
+from app.routers.auth import router as auth_router
 
 # Configure logging
 logger = logging.getLogger("pharmacy_module")
@@ -19,6 +20,8 @@ app = FastAPI(title="Pharmacy Module API", description="API for managing prescri
 app.include_router(prescriptions_router, prefix="/api/v1", tags=["Prescriptions"])
 #Router for inventory heh
 app.include_router(inventory_router, prefix="/api/v1", tags=["Inventory"])
+#Router for auth heh
+app.include_router(auth_router, prefix="/api/v1", tags=["Authentication"])
 
 @app.on_event("startup")
 async def startup_event():
