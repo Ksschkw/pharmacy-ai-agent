@@ -1,5 +1,5 @@
 import logging
-from ..services.database import get_db
+from app.services.database import get_db
 from datetime import datetime, timedelta
 
 logger = logging.getLogger("pharmacy_module.forecasting")
@@ -12,14 +12,23 @@ def generate_forecast_report():
         # Get all inventory items
         items = list(db.inventory.find())
         
-        # Simple forecasting algorithm (replace with ML model later)
         for item in items:
-            # Calculate usage rate based on historical data
-            # This is a placeholder - implement actual usage tracking
-            usage_rate = item.get("quantity", 0) / 30  # Daily usage estimate
+            # Get actual usage from history if available
+            usage_rate = item.get("daily_usage_rate", 0)
+            
+            # Fallback calculation if no usage data
+            if usage_rate <= 0:
+                # Calculate based on current stock and default period
+                usage_rate = item.get("quantity", 10) / 30  # Default to 10 if missing
             
             # Calculate days until reorder needed
-            days_until_reorder = item["quantity"] / usage_rate if usage_rate > 0 else 0
+            current_stock = item.get("quantity", 0)
+            reorder_level = item.get("reorder_level", 10)  # Default reorder level
+            
+            if usage_rate > 0:
+                days_until_reorder = max(0, (current_stock - reorder_level) / usage_rate)
+            else:
+                days_until_reorder = 0
             
             # Update forecast in database
             db.inventory.update_one(
