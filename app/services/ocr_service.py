@@ -10,8 +10,8 @@ from pathlib import Path
 logging.basicConfig(level=logging.ERROR)
 
 # Load environment variables
-env_path = Path(__file__).resolve().parent.parent.parent / '.env'
-load_dotenv(env_path)
+# env_path = Path(__file__).resolve().parent.parent.parent / '.env'
+# load_dotenv(env_path)
 
 class OCRService:
     def __init__(self):

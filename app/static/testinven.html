@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pharmacy Inventory Test</title>
+    <script>
+        const API_BASE = "http://localhost:8000/api/v1";
+        
+        async function addItem() {
+            const formData = {
+                name: document.getElementById('name').value,
+                quantity: parseInt(document.getElementById('quantity').value),
+                unit_cost: parseFloat(document.getElementById('unit_cost').value),
+                selling_price: parseFloat(document.getElementById('selling_price').value),
+                batch_number: document.getElementById('batch_number').value,
+                expiration_date: document.getElementById('expiration_date').value,
+                storage_location: document.getElementById('storage_location').value
+            };
+            
+            const response = await fetch(`${API_BASE}/inventory`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(formData)
+            });
+            
+            const result = await response.json();
+            alert(`Item added: ${result.item_id}`);
+        }
+        
+        async function getInventory() {
+            const response = await fetch(`${API_BASE}/inventory`);
+            const items = await response.json();
+            
+            const table = document.getElementById('inventoryTable');
+            table.innerHTML = `
+                <tr>
+                    <th>Name</th>
+                    <th>Quantity</th>
+                    <th>Unit Cost</th>
+                    <th>Batch #</th>
+                    <th>Expiration</th>
+                    <th>Location</th>
+                </tr>
+            `;
+            
+            items.forEach(item => {
+                const row = table.insertRow();
+                row.insertCell(0).textContent = item.name;
+                row.insertCell(1).textContent = item.quantity;
+                row.insertCell(2).textContent = item.unit_cost;
+                row.insertCell(3).textContent = item.batch_number;
+                row.insertCell(4).textContent = new Date(item.expiration_date).toLocaleDateString();
+                row.insertCell(5).textContent = item.storage_location;
+            });
+        }
+        
+        async function generateReport() {
+            const response = await fetch(`${API_BASE}/inventory/report`, { method: 'POST' });
+            const result = await response.json();
+            alert(result.message);
+        }
+        
+        async function exportInventory() {
+            const response = await fetch(`${API_BASE}/inventory/export`);
+            const data = await response.json();
+            
+            // Create download link
+            const blob = new Blob([data.content], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = data.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+</head>
+<body>
+    <h1>Pharmacy Inventory Test</h1>
+    
+    <div>
+        <h2>Add New Item</h2>
+        <div>
+            <label>Name: <input type="text" id="name"></label>
+            <label>Quantity: <input type="number" id="quantity"></label>
+            <label>Unit Cost: <input type="number" step="0.01" id="unit_cost"></label>
+        </div>
+        <div>
+            <label>Selling Price: <input type="number" step="0.01" id="selling_price"></label>
+            <label>Batch #: <input type="text" id="batch_number"></label>
+            <label>Expiration: <input type="date" id="expiration_date"></label>
+        </div>
+        <div>
+            <label>Location: <input type="text" id="storage_location"></label>
+            <button onclick="addItem()">Add Item</button>
+        </div>
+    </div>
+    
+    <hr>
+    
+    <div>
+        <h2>Inventory Management</h2>
+        <button onclick="getInventory()">Refresh Inventory</button>
+        <button onclick="generateReport()">Generate Forecast</button>
+        <button onclick="exportInventory()">Export CSV</button>
+        
+        <table id="inventoryTable" border="1">
+            <tr>
+                <th>Name</th>
+                <th>Quantity</th>
+                <th>Unit Cost</th>
+                <th>Batch #</th>
+                <th>Expiration</th>
+                <th>Location</th>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>
