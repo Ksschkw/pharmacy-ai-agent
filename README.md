@@ -118,7 +118,7 @@ Pharmacy AI Agent is a production-ready RESTful API that revolutionizes pharmacy
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/pharmacy-ai-agent.git
+   git clone https://github.com/Ksschkw/pharmacy-ai-agent.git
    cd pharmacy-ai-agent
    ```
 
